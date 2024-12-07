@@ -3,17 +3,20 @@ package com.kodiiiofc.urbanuniversity.jetpackcompose.modaldrawer
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -27,6 +30,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDrawerState
@@ -63,7 +67,10 @@ class MainActivity : ComponentActivity() {
 
 
             val notesList = remember {
-                mutableStateListOf<NoteItem>()
+                mutableStateListOf<NoteItem>(
+                    NoteItem("Заметка №1", "Тут содержимое тестовой заметки"),
+                    NoteItem("Заметка №2", "Вторая текстовая заметка"),
+                )
             }
 
             val navController = rememberNavController()
@@ -93,12 +100,21 @@ fun MainView(
 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val showDeleteDialog = remember {
+        mutableStateOf(false)
+    }
+    val deletingItemIndex = remember { mutableStateOf<NoteItem?>(null) }
+
+    DeleteItemConfirmAlertDialog(showDeleteDialog, notesList, selectedNote, deletingItemIndex)
 
     ModalDrawerTheme {
 
         ModalNavigationDrawer(
             drawerContent = {
-                NavMenu(notesList, selectedNote, drawerState)
+                NavMenu(notesList, selectedNote, drawerState, {
+                    showDeleteDialog.value = true
+                    deletingItemIndex.value = it
+                })
             },
             drawerState = drawerState,
             content = {
@@ -120,8 +136,8 @@ fun MainView(
                             actions = {
                                 IconButton(
                                     onClick = {
-                                        notesList.remove(selectedNote.value)
-                                        selectedNote.value = null
+                                        deletingItemIndex.value = selectedNote.value
+                                        showDeleteDialog.value = true
                                     }) {
                                     Icon(Icons.Default.Delete, "Удалить заметку")
                                 }
@@ -166,15 +182,28 @@ fun MainView(
 fun NavMenu(
     noteList: SnapshotStateList<NoteItem>,
     selectedItem: MutableState<NoteItem?>,
-    drawerState: DrawerState
+    drawerState: DrawerState,
+    onItemDeleteIconClick: (NoteItem) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
 
-    ModalDrawerSheet {
+    ModalDrawerSheet(Modifier.requiredWidth(320.dp)) {
         noteList.forEachIndexed { index, note ->
             NavigationDrawerItem(
                 label = {
-                    Text(note.title)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(note.title)
+                        IconButton(onClick =
+                        {
+                            onItemDeleteIconClick(note)
+                        }) {
+                            Icon(Icons.Default.Delete, "Удалить заметку")
+                        }
+                    }
                 },
                 selected = note == selectedItem.value,
                 onClick = {
@@ -183,6 +212,42 @@ fun NavMenu(
                 }
             )
         }
+    }
+}
+
+@Composable
+fun DeleteItemConfirmAlertDialog(
+    showDialog: MutableState<Boolean>,
+    noteList: SnapshotStateList<NoteItem>,
+    selectedItem: MutableState<NoteItem?>,
+    deletingItem: MutableState<NoteItem?>
+) {
+    if (showDialog.value && deletingItem.value != null) {
+        AlertDialog(
+            onDismissRequest = { showDialog.value = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDialog.value = false
+                        selectedItem.value = null
+                        noteList.remove(deletingItem.value!!)
+                    }
+                ) {
+                    Text("Удалить")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showDialog.value = false }
+                ) {
+                    Text("Отмена")
+                }
+            },
+            title = { Text("Удаление элемента") },
+            icon = { Icon(Icons.Default.Delete, "Удаление элемента") },
+            text = { Text("Вы собираетесь удалить заметку \"${deletingItem.value!!.title}\". Удалить?") },
+
+            )
     }
 }
 
